@@ -421,39 +421,35 @@
       position: absolute;
       z-index: 3;
       right: var(--intro-gutter);
-      bottom: clamp(70px, 9.5vh, 88px);
+      bottom: clamp(28px, 5.85vh, 48px);
       display: grid;
       place-items: center;
-      width: 44px;
-      height: 44px;
-      padding: 0;
+      width: 34px;
+      height: 30px;
+      padding: 0 0 2px;
       border: 1px solid var(--line);
-      border-radius: 50%;
-      background: var(--surface);
-      color: var(--ink);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted);
+      opacity: .52;
       cursor: pointer;
-      transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease;
+      font-size: 18px;
+      font-weight: 300;
+      line-height: 1;
+      transition: opacity 180ms ease, color 180ms ease, background-color 180ms ease, border-color 180ms ease;
     }
 
     .intro-forward:hover {
       border-color: var(--muted);
-      background: var(--ink);
-      color: var(--bg);
+      background: var(--surface);
+      color: var(--ink);
+      opacity: .88;
     }
 
     .intro-forward:focus-visible {
       outline: 2px solid var(--ink);
       outline-offset: 3px;
-    }
-
-    .intro-forward svg {
-      width: 19px;
-      height: 19px;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 1.7;
-      stroke-linecap: round;
-      stroke-linejoin: round;
+      opacity: 1;
     }
 
     .intro-content {
@@ -3294,6 +3290,7 @@
             <ul class="intro-lines">${sentences}</ul>
             <div class="intro-doodle" aria-hidden="true"></div>
           </div>
+          <button class="intro-forward" type="button" data-intro-forward aria-label="Next slide"><span aria-hidden="true">→</span></button>
         </article>
       `;
     }
@@ -4726,6 +4723,57 @@
       if (event.button !== undefined && event.button !== 0) return;
       if (slideIndex >= 0) forward();
     });
+
+    let wheelDelta = 0;
+    let wheelGestureLocked = false;
+    let wheelGestureTimer = 0;
+    const wheelRepeatDelay = 320;
+
+    function canScrollWithinSlide(target, direction) {
+      let node = target instanceof Element ? target : null;
+      while (node && node !== deck) {
+        const { overflowY } = getComputedStyle(node);
+        const scrollable = (overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight + 1;
+        if (scrollable) {
+          const atTop = node.scrollTop <= 1;
+          const atBottom = node.scrollTop + node.clientHeight >= node.scrollHeight - 1;
+          if ((direction < 0 && !atTop) || (direction > 0 && !atBottom)) return true;
+        }
+        node = node.parentElement;
+      }
+      return false;
+    }
+
+    document.addEventListener('wheel', event => {
+      if (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+
+      const direction = Math.sign(event.deltaY);
+      if (!direction || canScrollWithinSlide(event.target, direction)) {
+        wheelDelta = 0;
+        return;
+      }
+
+      event.preventDefault();
+      if (wheelGestureLocked || transitioning) return;
+      const multiplier = event.deltaMode === WheelEvent.DOM_DELTA_LINE
+        ? 16
+        : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+          ? window.innerHeight
+          : 1;
+      const normalizedDelta = event.deltaY * multiplier;
+      if (wheelDelta && Math.sign(wheelDelta) !== Math.sign(normalizedDelta)) wheelDelta = 0;
+      wheelDelta += normalizedDelta;
+
+      if (Math.abs(wheelDelta) < 28) return;
+      wheelGestureLocked = true;
+      wheelDelta = 0;
+      window.clearTimeout(wheelGestureTimer);
+      wheelGestureTimer = window.setTimeout(() => {
+        wheelGestureLocked = false;
+      }, wheelRepeatDelay);
+      if (direction > 0) forward();
+      else back();
+    }, { passive: false });
 
     document.addEventListener('keydown', event => {
       const target = event.target instanceof HTMLElement ? event.target : null;
